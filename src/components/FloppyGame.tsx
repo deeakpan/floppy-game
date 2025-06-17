@@ -1,26 +1,32 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import styles from './FloppyGame.module.css';
 
 export const FloppyGame: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const lastUpdateRef = useRef<number>(0);
+  const lastUpdateRef = useRef<number>(0); // Keeps track of last timestamp for delta time
   const restartButtonRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
+  
+  // Image refs
   const birdImage = useRef<HTMLImageElement | null>(null);
   const pipeImage = useRef<HTMLImageElement | null>(null);
   const backgroundImage = useRef<HTMLImageElement | null>(null);
   const sadFloppyImage = useRef<HTMLImageElement | null>(null);
   const platformImage = useRef<HTMLImageElement | null>(null);
+  const powerUpImage = useRef<HTMLImageElement | null>(null); // For the 20-point item
 
   // Game state
   const birdY = useRef(225);
   const velocity = useRef(0);
   const pipes = useRef<Array<{ x: number; height: number; passed: boolean }>>([]);
+  const powerUps = useRef<Array<{ x: number; y: number; collected: boolean }>>([]); // State for power-ups
   const score = useRef(0);
   const gameOver = useRef(false);
   const isDying = useRef(false);
   const showRestartScreen = useRef(false);
+  const gameStarted = useRef(false); // New ref to track game start
   const rotation = useRef(0);
 
+  // Game constants
   const CANVAS_WIDTH = 800;
   const CANVAS_HEIGHT = 500;
   const PIPE_WIDTH = 60;
@@ -28,61 +34,85 @@ export const FloppyGame: React.FC = () => {
   const PIPE_GAP = 120;
   const BIRD_WIDTH = 40;
   const BIRD_HEIGHT = 30;
-  const COLLISION_PADDING = 0;
+  const COLLISION_PADDING = 0; // Not currently used, but kept for reference
   const SHOW_DEBUG = false;
   const GRAVITY = 0.35;
   const JUMP_FORCE = -5;
   const ROTATION_SPEED = 0.01;
   const PIPE_SPEED = 3.5;
   const PLATFORM_HEIGHT = 60;
+  const POWERUP_SIZE = 30;
+  const POWERUP_SPAWN_CHANCE = 0.3; // 30% chance to spawn a power-up with each new pipe
 
-  const handleJump = () => {
-    if (!gameOver.current) {
-      velocity.current = JUMP_FORCE;
-      // Add jump animation
-      rotation.current = -Math.PI / 4;  // Point upward immediately
-    } else if (showRestartScreen.current) {
-      // Reset game
-      gameOver.current = false;
-      isDying.current = false;
-      showRestartScreen.current = false;
-      birdY.current = CANVAS_HEIGHT / 2;
-      velocity.current = 0;
-      rotation.current = 0;
-      pipes.current = [];
-      score.current = 0;
-    }
-  };
+  // Helper function to load images
+  const loadImage = useCallback((src: string): Promise<HTMLImageElement> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        console.log(`FloppyGame: Image loaded successfully: ${src}`);
+        resolve(img);
+      };
+      img.onerror = (e) => {
+        console.error(`FloppyGame: Error loading image: ${src}`, e);
+        reject(new Error(`Failed to load image: ${src}`));
+      };
+      // Ensure image paths are correct for deployment (relative to public folder)
+      img.src = src.startsWith('/') ? src : `/${src}`;
+    });
+  }, []);
 
-  const getScoreMessage = (score: number): string => {
-    if (score < 50) return "That didn't feel comfy...";
-    if (score < 100) return "You must like privacy!";
-    if (score < 200) return "Real INCO gang!";
-    if (score < 300) return "INCO Master!";
-    if (score < 500) return "INCO Legend!";
+  // Game Functions (useCallback for stability and to avoid re-renders)
+  const checkCollision = useCallback((birdX: number, birdY: number, itemX: number, itemY: number, itemWidth: number, itemHeight: number) => {
+    const birdLeft = birdX;
+    const birdRight = birdX + BIRD_WIDTH;
+    const birdTop = birdY;
+    const birdBottom = birdY + BIRD_HEIGHT;
+
+    const itemLeft = itemX;
+    const itemRight = itemX + itemWidth;
+    const itemTop = itemY;
+    const itemBottom = itemY + itemHeight;
+
+    // Basic AABB collision detection
+    return birdRight > itemLeft && birdLeft < itemRight &&
+           birdBottom > itemTop && birdTop < itemBottom;
+  }, [BIRD_WIDTH, BIRD_HEIGHT]);
+
+  const spawnPipe = useCallback(() => {
+    const minHeight = 100;
+    const maxHeight = 300;
+    const randomHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
+    pipes.current.push({
+      x: CANVAS_WIDTH,
+      height: randomHeight,
+      passed: false,
+    });
+  }, [CANVAS_WIDTH, pipes]);
+
+  const getScoreMessage = useCallback((currentScore: number): string => {
+    if (currentScore < 50) return "That didn't feel comfy...";
+    if (currentScore < 100) return "You must like privacy!";
+    if (currentScore < 200) return "Real INCO gang!";
+    if (currentScore < 300) return "INCO Master!";
+    if (currentScore < 500) return "INCO Legend!";
     return "INCO GOD!";
-  };
+  }, []);
 
-  const drawRestartScreen = (ctx: CanvasRenderingContext2D) => {
-    // Semi-transparent overlay
+  const drawRestartScreen = useCallback((ctx: CanvasRenderingContext2D) => {
     ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    // Game over text
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 36px Arial';
     ctx.textAlign = 'center';
     ctx.fillText('Game Over!', CANVAS_WIDTH / 2, 105);
 
-    // Score text
     ctx.font = '24px Arial';
     ctx.fillText(`Score: ${score.current}`, CANVAS_WIDTH / 2, 155);
 
-    // Score message
     ctx.font = 'bold 20px Arial';
     ctx.fillText(getScoreMessage(score.current), CANVAS_WIDTH / 2, 185);
 
-    // Draw sad floppy image
     if (sadFloppyImage.current) {
       const imageSize = 100;
       ctx.drawImage(
@@ -94,13 +124,11 @@ export const FloppyGame: React.FC = () => {
       );
     }
 
-    // Restart button
     const buttonWidth = 200;
     const buttonHeight = 50;
     const buttonX = CANVAS_WIDTH / 2 - buttonWidth / 2;
     const buttonY = 310;
 
-    // Button background with gradient
     const gradient = ctx.createLinearGradient(buttonX, buttonY, buttonX, buttonY + buttonHeight);
     gradient.addColorStop(0, '#2196F3');
     gradient.addColorStop(1, '#1976D2');
@@ -109,37 +137,32 @@ export const FloppyGame: React.FC = () => {
     ctx.roundRect(buttonX, buttonY, buttonWidth, buttonHeight, 10);
     ctx.fill();
 
-    // Button border
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Button text
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 20px Arial';
     ctx.fillText('Play Again', CANVAS_WIDTH / 2, buttonY + buttonHeight / 2 + 7);
 
-    // Click detection area
     restartButtonRef.current = {
       x: buttonX,
       y: buttonY,
       width: buttonWidth,
       height: buttonHeight
     };
-  };
+  }, [CANVAS_WIDTH, CANVAS_HEIGHT, score, getScoreMessage, sadFloppyImage, restartButtonRef]);
 
-  const drawPipes = (ctx: CanvasRenderingContext2D) => {
+  const drawPipes = useCallback((ctx: CanvasRenderingContext2D) => {
     if (!pipeImage.current) return;
 
     pipes.current.forEach(pipe => {
-      // Draw top pipe
       ctx.save();
       ctx.translate(pipe.x, pipe.height);
       ctx.scale(1, -1);
       ctx.drawImage(pipeImage.current!, 0, 0, PIPE_WIDTH, PIPE_HEIGHT);
       ctx.restore();
 
-      // Draw bottom pipe
       ctx.drawImage(
         pipeImage.current!,
         pipe.x,
@@ -148,297 +171,293 @@ export const FloppyGame: React.FC = () => {
         PIPE_HEIGHT
       );
     });
-  };
+  }, [pipeImage, PIPE_WIDTH, PIPE_HEIGHT, PIPE_GAP, pipes]);
 
+  const drawInstructionsScreen = useCallback((ctx: CanvasRenderingContext2D) => {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'; // Darker overlay
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 48px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('Floppy Game', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 60);
+
+    ctx.font = '30px Arial';
+    ctx.fillText('Press SPACE or CLICK to Start', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 20);
+
+    ctx.font = '20px Arial';
+    ctx.fillText('(Avoid pipes, collect special items for 20 points!)', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 70);
+  }, [CANVAS_WIDTH, CANVAS_HEIGHT]);
+
+  // Main Game Loop
+  const gameLoop = useCallback(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+
+    if (!ctx) {
+      console.log('FloppyGame: Game loop: Canvas context not available. Stopping loop.');
+      return; // Exit if context is not available
+    }
+
+    // Game logic is paused until gameStarted is true
+    if (!gameStarted.current) {
+      ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      if (backgroundImage.current) {
+        ctx.drawImage(backgroundImage.current, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      }
+      drawInstructionsScreen(ctx); 
+      requestAnimationFrame(gameLoop); // Keep looping to draw instructions
+      return; // Exit game logic until started
+    }
+
+    // --- Game continues from here if started ---
+    // Clear canvas for next frame
+    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    // Draw background
+    if (backgroundImage.current) {
+      ctx.drawImage(backgroundImage.current, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    }
+
+    // Draw pipes
+    drawPipes(ctx);
+
+    // Draw platform (moved after pipes to appear on top)
+    if (platformImage.current) {
+      ctx.drawImage(
+        platformImage.current,
+        0,
+        CANVAS_HEIGHT - PLATFORM_HEIGHT,
+        CANVAS_WIDTH,
+        PLATFORM_HEIGHT
+      );
+    }
+
+    // Draw power-ups
+    if (powerUpImage.current) {
+      powerUps.current.forEach((powerUp: { x: number; y: number; collected: boolean }) => {
+        if (!powerUp.collected) {
+          ctx.drawImage(powerUpImage.current!, powerUp.x, powerUp.y, POWERUP_SIZE, POWERUP_SIZE);
+        }
+      });
+    }
+
+    // Update bird position
+    if (!gameOver.current) {
+      velocity.current += GRAVITY;
+      birdY.current += velocity.current;
+
+      // Smoother rotation based on velocity
+      const targetRotation = velocity.current * ROTATION_SPEED;
+      rotation.current += (targetRotation - rotation.current) * 0.1;
+      rotation.current = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, rotation.current));
+    } else if (isDying.current) {
+      // Death animation - bird falls
+      velocity.current += GRAVITY;
+      birdY.current += velocity.current;
+
+      // Stop bird at platform
+      if (birdY.current > CANVAS_HEIGHT - PLATFORM_HEIGHT - BIRD_HEIGHT) {
+        birdY.current = CANVAS_HEIGHT - PLATFORM_HEIGHT - BIRD_HEIGHT;
+        velocity.current = 0;
+        isDying.current = false;
+        showRestartScreen.current = true;
+      }
+    }
+
+    // Spawn new pipes
+    if (!gameOver.current) {
+      if (pipes.current.length === 0 || pipes.current[pipes.current.length - 1].x < CANVAS_WIDTH - 300) {
+        spawnPipe();
+
+        // Randomly spawn a power-up with 30% chance, positioned between pipes
+        if (Math.random() < POWERUP_SPAWN_CHANCE) {
+          const minY = 50; // Minimum distance from top
+          const maxY = CANVAS_HEIGHT - PLATFORM_HEIGHT - POWERUP_SIZE - 50; // Maximum distance from platform
+          powerUps.current.push({
+            x: CANVAS_WIDTH + 150, // Position power-up between pipes
+            y: Math.random() * (maxY - minY) + minY, // Random Y within safe bounds
+            collected: false,
+          });
+        }
+      }
+    }
+
+    // Update pipes
+    if (!gameOver.current) {
+      pipes.current = pipes.current.filter(pipe => {
+        pipe.x -= PIPE_SPEED;
+        if (!pipe.passed && pipe.x + PIPE_WIDTH < 50) {
+          pipe.passed = true;
+          score.current += 10;
+        }
+        return pipe.x > -PIPE_WIDTH;
+      });
+
+      // Update power-ups and check for collection
+      powerUps.current = powerUps.current.filter((powerUp: { x: number; y: number; collected: boolean }) => {
+        if (powerUp.collected) return false; // Already collected
+        powerUp.x -= PIPE_SPEED;
+
+        // Check collision with bird
+        if (checkCollision(50, birdY.current, powerUp.x, powerUp.y, POWERUP_SIZE, POWERUP_SIZE)) {
+          score.current += 20;
+          return false; // Remove collected power-up
+        }
+        return powerUp.x > -POWERUP_SIZE; // Remove if off-screen
+      });
+    }
+
+    // Check for pipe collisions
+    if (!gameOver.current) {
+      for (const pipe of pipes.current) {
+        if (
+          checkCollision(
+            50, birdY.current,
+            pipe.x + 5, // Small offset for pipe graphic
+            pipe.height - 10, // Top pipe bottom part
+            PIPE_WIDTH - 10, // Width of collision area
+            10 // Height of collision area
+          ) ||
+          checkCollision(
+            50, birdY.current,
+            pipe.x + 5,
+            pipe.height + PIPE_GAP,
+            PIPE_WIDTH - 10,
+            PIPE_HEIGHT - 10 // Bottom pipe top part
+          )
+        ) {
+          gameOver.current = true;
+          isDying.current = true;
+          velocity.current = 0;
+          break;
+        }
+      }
+    }
+
+    // Check for floor/ceiling collisions
+    if (birdY.current < 0 || birdY.current + BIRD_HEIGHT > CANVAS_HEIGHT - PLATFORM_HEIGHT) {
+      if (!gameOver.current) {
+        gameOver.current = true;
+        isDying.current = true;
+        velocity.current = 0;
+      }
+    }
+
+    // Draw bird
+    if (birdImage.current) {
+      ctx.save();
+      ctx.translate(50 + BIRD_WIDTH / 2, birdY.current + BIRD_HEIGHT / 2);
+      ctx.rotate(rotation.current);
+      ctx.drawImage(
+        birdImage.current,
+        -BIRD_WIDTH / 2,
+        -BIRD_HEIGHT / 2,
+        BIRD_WIDTH,
+        BIRD_HEIGHT
+      );
+      ctx.restore();
+    }
+
+    // Draw score
+    ctx.fillStyle = 'white';
+    ctx.font = '48px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(score.current.toString(), CANVAS_WIDTH / 2, 50);
+
+    // Draw restart screen
+    if (showRestartScreen.current) {
+      drawRestartScreen(ctx);
+    }
+
+    requestAnimationFrame(gameLoop); // Keep the loop going
+  }, [backgroundImage, birdImage, birdY, CANVAS_HEIGHT, CANVAS_WIDTH, checkCollision, drawRestartScreen, drawPipes, drawInstructionsScreen, gameOver, GRAVITY, isDying, PIPE_GAP, PIPE_HEIGHT, PIPE_SPEED, PIPE_WIDTH, pipes, platformImage, PLATFORM_HEIGHT, POWERUP_SIZE, POWERUP_SPAWN_CHANCE, powerUpImage, powerUps, rotation, score, showRestartScreen, spawnPipe, velocity, BIRD_HEIGHT, BIRD_WIDTH, ROTATION_SPEED, gameStarted]);
+
+  const handleJump = useCallback(() => {
+    if (!gameOver.current) {
+      velocity.current = JUMP_FORCE;
+      rotation.current = -Math.PI / 4;
+    } else if (showRestartScreen.current) {
+      // Reset game state on restart
+      gameOver.current = false;
+      isDying.current = false;
+      showRestartScreen.current = false;
+      gameStarted.current = false; // Reset gameStarted so instructions show again
+      birdY.current = CANVAS_HEIGHT / 2;
+      velocity.current = 0;
+      rotation.current = 0;
+      pipes.current = [];
+      powerUps.current = []; // Clear power-ups on restart
+      score.current = 0;
+    }
+  }, [CANVAS_HEIGHT, JUMP_FORCE, birdY, gameOver, isDying, pipes, rotation, score, showRestartScreen, velocity, powerUps, gameStarted]);
+
+  // Event Listeners
   useEffect(() => {
+    console.log('FloppyGame: Setting up event listeners.');
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // Load images
-    const loadImage = (src: string): Promise<HTMLImageElement> => {
-      return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = () => reject(new Error(`Failed to load image: ${src}`));
-        img.src = src;
-      });
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (!gameStarted.current) {
+          gameStarted.current = true; // Start game on first space press
+          velocity.current = JUMP_FORCE; // Give initial jump on start
+        }
+        handleJump();
+      }
     };
 
-    const init = async () => {
+    const handleClick = () => {
+      if (!gameStarted.current) {
+        gameStarted.current = true; // Start game on first click
+        velocity.current = JUMP_FORCE; // Give initial jump on start
+      }
+      handleJump();
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    canvas.addEventListener('click', handleClick); 
+
+    // Initial setup to load assets and start the main game loop for the instruction screen
+    let animationFrameId: number; // Declare here for scope
+    const initGame = async () => {
       try {
         birdImage.current = await loadImage('/floppy1.png');
         pipeImage.current = await loadImage('/pipe.svg');
         backgroundImage.current = await loadImage('/background.svg');
         sadFloppyImage.current = await loadImage('/sad floppy.png');
         platformImage.current = await loadImage('/platform.svg');
-        console.log('All images loaded successfully');
+        powerUpImage.current = await loadImage('/Screenshot 2025-06-17 142218.png');
+        console.log('FloppyGame: All images loaded. Initiating game loop.');
+        animationFrameId = requestAnimationFrame(gameLoop); // Start the loop for instructions
       } catch (error) {
-        console.error('Error loading images:', error);
+        console.error('FloppyGame: Error during game initialization (image loading):', error);
       }
     };
-
-    init();
-
-    let lastPipeSpawn = 0;
-    let animationFrameId: number;
-    let deathTime = 0;
-
-    const checkCollision = (birdX: number, birdY: number, pipe: { x: number; height: number }) => {
-      const birdLeft = birdX;
-      const birdRight = birdX + BIRD_WIDTH;
-      const birdTop = birdY;
-      const birdBottom = birdY + BIRD_HEIGHT;
-
-      const pipeLeft = pipe.x;
-      const pipeRight = pipe.x + PIPE_WIDTH;
-      const topPipeBottom = pipe.height;
-      const bottomPipeTop = pipe.height + PIPE_GAP;
-
-      // Check if bird is horizontally aligned with the pipe
-      if (birdRight > pipeLeft && birdLeft < pipeRight) {
-        // Check if bird hits the top pipe
-        if (birdTop < topPipeBottom) {
-          return true;
-        }
-        // Check if bird hits the bottom pipe
-        if (birdBottom > bottomPipeTop) {
-          return true;
-        }
-      }
-
-      // Check if bird hits top or bottom of screen (excluding platform area)
-      if (birdTop < 0 || birdBottom > CANVAS_HEIGHT - PLATFORM_HEIGHT) {
-        return true;
-      }
-
-      return false;
-    };
-
-    const spawnPipe = () => {
-      // Random height between 100 and 300
-      const minHeight = 100;
-      const maxHeight = 300;
-      const randomHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
-
-      pipes.current.push({
-        x: CANVAS_WIDTH,
-        height: randomHeight,
-        passed: false
-      });
-    };
-
-    const gameLoop = (timestamp: number) => {
-      if (!lastPipeSpawn) {
-        lastPipeSpawn = timestamp;
-      }
-
-      const deltaTime = timestamp - lastPipeSpawn;
-      lastPipeSpawn = timestamp;
-
-      // Clear canvas
-      ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
-      // Draw background
-      if (backgroundImage.current) {
-        ctx.drawImage(backgroundImage.current, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-      }
-
-      // Draw pipes
-      drawPipes(ctx);
-
-      // Draw platform - Moved to be above pipes
-      if (platformImage.current) {
-        ctx.drawImage(
-          platformImage.current,
-          0,
-          CANVAS_HEIGHT - PLATFORM_HEIGHT,
-          CANVAS_WIDTH,
-          PLATFORM_HEIGHT
-        );
-      }
-
-      // Update bird position
-      if (!gameOver.current) {
-        velocity.current += GRAVITY;
-        birdY.current += velocity.current;
-
-        // Smoother rotation based on velocity
-        const targetRotation = velocity.current * ROTATION_SPEED;
-        rotation.current += (targetRotation - rotation.current) * 0.1;  // Smooth interpolation
-        rotation.current = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, rotation.current));
-      } else if (isDying.current) {
-        // Death animation - bird falls
-        velocity.current += GRAVITY;
-        birdY.current += velocity.current;
-        
-        // Stop bird at platform
-        if (birdY.current > CANVAS_HEIGHT - PLATFORM_HEIGHT - BIRD_HEIGHT) {
-          birdY.current = CANVAS_HEIGHT - PLATFORM_HEIGHT - BIRD_HEIGHT;
-          velocity.current = 0;
-          isDying.current = false;
-          showRestartScreen.current = true;
-        }
-      }
-
-      // Spawn new pipes
-      if (!gameOver.current) {
-        if (pipes.current.length === 0 || pipes.current[pipes.current.length - 1].x < CANVAS_WIDTH - 300) {
-          spawnPipe();
-        }
-      }
-
-      // Update pipes - only if game is not over
-      if (!gameOver.current) {
-        pipes.current = pipes.current.filter(pipe => {
-          pipe.x -= PIPE_SPEED;
-          
-          // Check if bird has passed the pipe
-          if (!pipe.passed && pipe.x + PIPE_WIDTH < 50) {
-            pipe.passed = true;
-            score.current += 10;
-          }
-          
-          return pipe.x > -PIPE_WIDTH;
-        });
-      }
-
-      // Check for collisions
-      if (!gameOver.current) {
-        for (const pipe of pipes.current) {
-          if (checkCollision(50, birdY.current, pipe)) {
-            gameOver.current = true;
-            isDying.current = true;
-            velocity.current = 0;  // Reset velocity for death animation
-            break;
-          }
-        }
-      }
-
-      // Draw bird
-      if (birdImage.current) {
-        ctx.save();
-        ctx.translate(50 + BIRD_WIDTH / 2, birdY.current + BIRD_HEIGHT / 2);
-        ctx.rotate(rotation.current);
-        ctx.drawImage(
-          birdImage.current,
-          -BIRD_WIDTH / 2,
-          -BIRD_HEIGHT / 2,
-          BIRD_WIDTH,
-          BIRD_HEIGHT
-        );
-        ctx.restore();
-      }
-
-      // Draw score
-      ctx.fillStyle = 'white';
-      ctx.font = '48px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText(score.current.toString(), CANVAS_WIDTH / 2, 50);
-
-      // Draw restart screen only after bird has fallen
-      if (showRestartScreen.current) {
-        drawRestartScreen(ctx);
-      }
-
-      animationFrameId = requestAnimationFrame(gameLoop);
-    };
-
-    animationFrameId = requestAnimationFrame(gameLoop);
-
-    const handleKeyPress = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
-        e.preventDefault();
-        handleJump();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyPress);
+    initGame();
 
     return () => {
+      console.log('FloppyGame: Cleaning up event listeners and animation frame.');
       window.removeEventListener('keydown', handleKeyPress);
-      cancelAnimationFrame(animationFrameId);
+      canvas.removeEventListener('click', handleClick);
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
     };
-  }, []);
-
-  useEffect(() => {
-    // Load bird image
-    const birdImg = new Image();
-    birdImg.src = '/floppy1.png';
-    birdImg.onload = () => {
-      console.log('Bird image loaded');
-      birdImage.current = birdImg;
-    };
-
-    // Load pipe image
-    const pipeImg = new Image();
-    pipeImg.src = '/pipe.svg';
-    pipeImg.onload = () => {
-      console.log('Pipe image loaded');
-      pipeImage.current = pipeImg;
-    };
-
-    // Load background image
-    const bgImg = new Image();
-    bgImg.src = '/background.svg';
-    bgImg.onload = () => {
-      console.log('Background image loaded');
-      backgroundImage.current = bgImg;
-    };
-
-    // Load sad floppy image
-    const sadImg = new Image();
-    sadImg.src = '/sad floppy.png';
-    sadImg.onload = () => {
-      console.log('Sad floppy image loaded');
-      sadFloppyImage.current = sadImg;
-    };
-    sadImg.onerror = (e) => {
-      console.error('Failed to load sad floppy:', e);
-    };
-
-    // Load platform image
-    const platformImg = new Image();
-    platformImg.src = '/platform.svg';
-    platformImg.onload = () => {
-      console.log('Platform image loaded');
-      platformImage.current = platformImg;
-    };
-    platformImg.onerror = (e) => {
-      console.error('Failed to load platform:', e);
-    };
-  }, []);
+  }, [handleJump, gameStarted, velocity, loadImage, gameLoop]); // Added necessary dependencies for initGame
 
   return (
-    <div className={styles.gameContainer}>
-      <canvas
-        ref={canvasRef}
-        className={styles.gameCanvas}
-        width={CANVAS_WIDTH}
-        height={CANVAS_HEIGHT}
-        onClick={(e) => {
-          if (gameOver.current) {
-            const rect = canvasRef.current?.getBoundingClientRect();
-            if (rect) {
-              const x = e.clientX - rect.left;
-              const y = e.clientY - rect.top;
-              
-              const buttonX = CANVAS_WIDTH / 2 - 110;
-              const buttonY = CANVAS_HEIGHT / 2 + 40;
-              
-              if (x > buttonX && x < buttonX + 220 &&
-                  y > buttonY && y < buttonY + 60) {
-                console.log('Click detected on restart button');
-                handleJump();
-              }
-            }
-          } else {
-            handleJump();
-          }
-        }}
-      />
-    </div>
+    <main>
+      <div className={styles.gameContainer}>
+        <canvas
+          ref={canvasRef}
+          width={CANVAS_WIDTH}
+          height={CANVAS_HEIGHT}
+          className={styles.gameCanvas}
+        ></canvas>
+      </div>
+    </main>
   );
 }; 

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="40" height="300" viewBox="0 0 40 300" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Glassy pipe body gradient -->
+    <linearGradient id="pipeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:rgba(33,150,243,0.5);stop-opacity:1" />
+      <stop offset="100%" style="stop-color:rgba(25,118,210,0.5);stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Enhanced shine effect for glass -->
+    <linearGradient id="shine" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:rgba(255,255,255,0.4);stop-opacity:1" />
+      <stop offset="50%" style="stop-color:rgba(255,255,255,0.7);stop-opacity:1" />
+      <stop offset="100%" style="stop-color:rgba(255,255,255,0.4);stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Shadow filter (kept for some depth) -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="2" dy="2" stdDeviation="2" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Main pipe body with glassy gradient -->
+  <rect x="0" y="30" width="40" height="270" 
+        fill="url(#pipeGradient)" 
+        stroke="black" 
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        filter="url(#shadow)"/>
+
+  <!-- Pipe mouth (top) - glassy style -->
+  <path d="M0 30 
+           C 5 30, 5 20, 10 20
+           C 15 20, 15 30, 20 30
+           C 25 30, 25 20, 30 20
+           C 35 20, 35 30, 40 30" 
+        fill="url(#pipeGradient)" 
+        stroke="black" 
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+
+  <!-- Enhanced Shine overlay for glass -->
+  <rect x="0" y="30" width="40" height="270" 
+        fill="url(#shine)" 
+        opacity="0.8"/>
+  <path d="M0 30 
+           C 5 30, 5 20, 10 20
+           C 15 20, 15 30, 20 30
+           C 25 30, 25 20, 30 20
+           C 35 20, 35 30, 40 30" 
+        fill="url(#shine)" 
+        opacity="0.8"/>
+
+  <!-- Inner shadow (made subtle for glass) -->
+  <rect x="2" y="32" width="36" height="266" 
+        fill="rgba(0,0,0,0.05)"/>
+
+  <!-- Slanted bright designs for glassy effect -->
+  <line x1="5" y1="60" x2="35" y2="120" stroke="white" stroke-width="8" opacity="0.6" stroke-linecap="round" transform="rotate(-10 20 90)"/>
+  <line x1="10" y1="140" x2="40" y2="200" stroke="white" stroke-width="6" opacity="0.5" stroke-linecap="round" transform="rotate(-10 25 170)"/>
+  <line x1="0" y1="220" x2="30" y2="280" stroke="white" stroke-width="4" opacity="0.4" stroke-linecap="round" transform="rotate(-10 15 250)"/>
+
+  <!-- Mouth details (simplified for glass) -->
+  <path d="M10 25 C 15 25, 15 22, 20 22 C 25 22, 25 25, 30 25" 
+        fill="none" 
+        stroke="rgba(0,0,0,0.5)" 
+        stroke-width="1.5"
+        stroke-linecap="round"/>
+
+  <!-- Eyes (simplified for glass) -->
+  <circle cx="15" cy="15" r="2" fill="rgba(0,0,0,0.5)" stroke="rgba(0,0,0,0.5)" stroke-width="0.5"/>
+  <circle cx="25" cy="15" r="2" fill="rgba(0,0,0,0.5)" stroke="rgba(0,0,0,0.5)" stroke-width="0.5"/>
+
+  <!-- Removed INCO text for glassy effect -->
+</svg> 

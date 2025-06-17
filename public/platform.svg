@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="60" viewBox="0 0 800 60" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Brown base gradient -->
+    <linearGradient id="brownGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#A0522D;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8B4513;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Cool blue diagonal grass pattern - using solid rects for better pixelation mimicry -->
+    <pattern id="grassPattern" x="0" y="0" width="12" height="12" patternUnits="userSpaceOnUse">
+      <rect x="0" y="0" width="12" height="12" fill="#E3F2FD"/> <!-- Lightest blue background -->
+      <!-- One diagonal stripe as a rotated rectangle -->
+      <rect x="-6" y="-6" width="24" height="12" fill="#42A5F5" transform="rotate(45)"/>
+    </pattern>
+  </defs>
+
+  <!-- Main brown platform body -->
+  <rect x="0" y="0" width="800" height="60" 
+        fill="url(#brownGradient)" 
+        stroke="black" 
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+
+  <!-- Blue grass top -->
+  <rect x="0" y="0" width="800" height="20" 
+        fill="url(#grassPattern)" 
+        stroke="black" 
+        stroke-width="2"/>
+
+  <!-- Top edge highlight (for the overall platform) -->
+  <line x1="0" y1="2" x2="800" y2="2" 
+        stroke="rgba(255,255,255,0.4)" 
+        stroke-width="1"/>
+
+  <!-- Bottom edge highlight (for the overall platform) -->
+  <line x1="0" y1="58" x2="800" y2="58" 
+        stroke="rgba(0,0,0,0.2)" 
+        stroke-width="1"/>
+</svg> 

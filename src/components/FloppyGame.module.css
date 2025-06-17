@@ -50,4 +50,28 @@
 .gameOver:hover {
   background-color: rgba(0, 0, 0, 0.9);
   transform: translate(-50%, -50%) scale(1.05);
+}
+
+.mobileMessage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 20px;
+  text-align: center;
+  background-color: #f0f0f0;
+  color: #333;
+}
+
+.mobileMessage h2 {
+  font-size: 24px;
+  margin-bottom: 16px;
+  color: #e74c3c;
+}
+
+.mobileMessage p {
+  font-size: 18px;
+  margin: 8px 0;
+  color: #666;
 } 

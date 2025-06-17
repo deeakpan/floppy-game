@@ -1,10 +1,12 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, useState } from 'react';
 import styles from './FloppyGame.module.css';
 
 export const FloppyGame: React.FC = () => {
+  const [isMobile, setIsMobile] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const lastUpdateRef = useRef<number>(0); // Keeps track of last timestamp for delta time
   const restartButtonRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
+  const animationFrameIdRef = useRef<number | null>(null); // Add ref for animation frame ID
   
   // Image refs
   const birdImage = useRef<HTMLImageElement | null>(null);
@@ -196,7 +198,7 @@ export const FloppyGame: React.FC = () => {
 
     if (!ctx) {
       console.log('FloppyGame: Game loop: Canvas context not available. Stopping loop.');
-      return; // Exit if context is not available
+      return;
     }
 
     // Game logic is paused until gameStarted is true
@@ -370,7 +372,8 @@ export const FloppyGame: React.FC = () => {
       drawRestartScreen(ctx);
     }
 
-    requestAnimationFrame(gameLoop); // Keep the loop going
+    // Store the animation frame ID in the ref
+    animationFrameIdRef.current = requestAnimationFrame(gameLoop);
   }, [backgroundImage, birdImage, birdY, CANVAS_HEIGHT, CANVAS_WIDTH, checkCollision, drawRestartScreen, drawPipes, drawInstructionsScreen, gameOver, GRAVITY, isDying, PIPE_GAP, PIPE_HEIGHT, PIPE_SPEED, PIPE_WIDTH, pipes, platformImage, PLATFORM_HEIGHT, POWERUP_SIZE, POWERUP_SPAWN_CHANCE, powerUpImage, powerUps, rotation, score, showRestartScreen, spawnPipe, velocity, BIRD_HEIGHT, BIRD_WIDTH, ROTATION_SPEED, gameStarted]);
 
   const handleJump = useCallback(() => {
@@ -392,7 +395,7 @@ export const FloppyGame: React.FC = () => {
     }
   }, [CANVAS_HEIGHT, JUMP_FORCE, birdY, gameOver, isDying, pipes, rotation, score, showRestartScreen, velocity, powerUps, gameStarted]);
 
-  // Event Listeners
+  // Event Listeners and Game Initialization
   useEffect(() => {
     console.log('FloppyGame: Setting up event listeners.');
     const canvas = canvasRef.current;
@@ -402,8 +405,8 @@ export const FloppyGame: React.FC = () => {
       if (e.code === 'Space') {
         e.preventDefault();
         if (!gameStarted.current) {
-          gameStarted.current = true; // Start game on first space press
-          velocity.current = JUMP_FORCE; // Give initial jump on start
+          gameStarted.current = true;
+          velocity.current = JUMP_FORCE;
         }
         handleJump();
       }
@@ -411,17 +414,16 @@ export const FloppyGame: React.FC = () => {
 
     const handleClick = () => {
       if (!gameStarted.current) {
-        gameStarted.current = true; // Start game on first click
-        velocity.current = JUMP_FORCE; // Give initial jump on start
+        gameStarted.current = true;
+        velocity.current = JUMP_FORCE;
       }
       handleJump();
     };
 
     window.addEventListener('keydown', handleKeyPress);
-    canvas.addEventListener('click', handleClick); 
+    canvas.addEventListener('click', handleClick);
 
-    // Initial setup to load assets and start the main game loop for the instruction screen
-    let animationFrameId: number; // Declare here for scope
+    // Initial setup to load assets and start the main game loop
     const initGame = async () => {
       try {
         birdImage.current = await loadImage('/floppy1.png');
@@ -431,22 +433,52 @@ export const FloppyGame: React.FC = () => {
         platformImage.current = await loadImage('/platform.svg');
         powerUpImage.current = await loadImage('/Screenshot 2025-06-17 142218.png');
         console.log('FloppyGame: All images loaded. Initiating game loop.');
-        animationFrameId = requestAnimationFrame(gameLoop); // Start the loop for instructions
+        animationFrameIdRef.current = requestAnimationFrame(gameLoop);
       } catch (error) {
         console.error('FloppyGame: Error during game initialization (image loading):', error);
       }
     };
+
     initGame();
 
+    // Cleanup function
     return () => {
       console.log('FloppyGame: Cleaning up event listeners and animation frame.');
       window.removeEventListener('keydown', handleKeyPress);
       canvas.removeEventListener('click', handleClick);
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
+      
+      // Cancel animation frame if it exists
+      if (animationFrameIdRef.current !== null) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+        animationFrameIdRef.current = null;
       }
     };
-  }, [handleJump, gameStarted, velocity, loadImage, gameLoop]); // Added necessary dependencies for initGame
+  }, [handleJump, gameStarted, velocity, loadImage, gameLoop]);
+
+  // Screen size check effect
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsMobile(window.innerWidth < 850);
+    };
+
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+
+    return () => {
+      window.removeEventListener('resize', checkScreenSize);
+    };
+  }, []);
+
+  // If mobile, show message instead of game
+  if (isMobile) {
+    return (
+      <div className={styles.mobileMessage}>
+        <h2>Not Available on Mobile</h2>
+        <p>Please play on desktop for the best experience!</p>
+        <p>Minimum screen width: 850px</p>
+      </div>
+    );
+  }
 
   return (
     <main>

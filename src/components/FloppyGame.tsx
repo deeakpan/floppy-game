@@ -29,11 +29,11 @@ export const FloppyGame: React.FC = () => {
   const BIRD_WIDTH = 40;
   const BIRD_HEIGHT = 30;
   const COLLISION_PADDING = 0;
-  const SHOW_DEBUG = true;
+  const SHOW_DEBUG = false;
   const GRAVITY = 0.35;
   const JUMP_FORCE = -5;
   const ROTATION_SPEED = 0.01;
-  const PIPE_SPEED = 2;
+  const PIPE_SPEED = 3.5;
   const PLATFORM_HEIGHT = 60;
 
   const handleJump = () => {
@@ -54,26 +54,33 @@ export const FloppyGame: React.FC = () => {
     }
   };
 
+  const getScoreMessage = (score: number): string => {
+    if (score < 50) return "That didn't feel comfy...";
+    if (score < 100) return "You must like privacy!";
+    if (score < 200) return "Real INCO gang!";
+    if (score < 300) return "INCO Master!";
+    if (score < 500) return "INCO Legend!";
+    return "INCO GOD!";
+  };
+
   const drawRestartScreen = (ctx: CanvasRenderingContext2D) => {
     // Semi-transparent overlay
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)'; // Balanced opacity for visibility but not full block
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     // Game over text
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 36px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText('Game Over!', CANVAS_WIDTH / 2, 105); // Adjusted Y
+    ctx.fillText('Game Over!', CANVAS_WIDTH / 2, 105);
 
     // Score text
     ctx.font = '24px Arial';
-    ctx.fillText(`Score: ${score.current}`, CANVAS_WIDTH / 2, 155); // Adjusted Y
+    ctx.fillText(`Score: ${score.current}`, CANVAS_WIDTH / 2, 155);
 
-    // Restart button
-    const buttonWidth = 200;
-    const buttonHeight = 50;
-    const buttonX = CANVAS_WIDTH / 2 - buttonWidth / 2;
-    const buttonY = 310; // Adjusted Y, positioned below the image
+    // Score message
+    ctx.font = 'bold 20px Arial';
+    ctx.fillText(getScoreMessage(score.current), CANVAS_WIDTH / 2, 185);
 
     // Draw sad floppy image
     if (sadFloppyImage.current) {
@@ -81,16 +88,22 @@ export const FloppyGame: React.FC = () => {
       ctx.drawImage(
         sadFloppyImage.current,
         CANVAS_WIDTH / 2 - imageSize / 2,
-        195, // Adjusted Y to be just above the button
+        195,
         imageSize,
         imageSize
       );
     }
 
+    // Restart button
+    const buttonWidth = 200;
+    const buttonHeight = 50;
+    const buttonX = CANVAS_WIDTH / 2 - buttonWidth / 2;
+    const buttonY = 310;
+
     // Button background with gradient
     const gradient = ctx.createLinearGradient(buttonX, buttonY, buttonX, buttonY + buttonHeight);
-    gradient.addColorStop(0, '#2196F3');  // Light blue
-    gradient.addColorStop(1, '#1976D2');  // Darker blue
+    gradient.addColorStop(0, '#2196F3');
+    gradient.addColorStop(1, '#1976D2');
     ctx.fillStyle = gradient;
     ctx.beginPath();
     ctx.roundRect(buttonX, buttonY, buttonWidth, buttonHeight, 10);
@@ -134,19 +147,6 @@ export const FloppyGame: React.FC = () => {
         PIPE_WIDTH,
         PIPE_HEIGHT
       );
-
-      // Debug collision boxes
-      if (SHOW_DEBUG) {
-        ctx.strokeStyle = 'red';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(pipe.x + 55, 0, PIPE_WIDTH - 110, pipe.height - 10);
-        ctx.strokeRect(
-          pipe.x + 55,
-          pipe.height + PIPE_GAP + 10,
-          PIPE_WIDTH - 110,
-          CANVAS_HEIGHT - (pipe.height + PIPE_GAP + 10)
-        );
-      }
     });
   };
 
@@ -294,6 +294,13 @@ export const FloppyGame: React.FC = () => {
       if (!gameOver.current) {
         pipes.current = pipes.current.filter(pipe => {
           pipe.x -= PIPE_SPEED;
+          
+          // Check if bird has passed the pipe
+          if (!pipe.passed && pipe.x + PIPE_WIDTH < 50) {
+            pipe.passed = true;
+            score.current += 10;
+          }
+          
           return pipe.x > -PIPE_WIDTH;
         });
       }
